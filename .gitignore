@@ -1,0 +1,40 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+data/*
+!data/incoming/
+data/incoming/*
+tmp/
+*.log
+output/
+*.zip
+/IEEE_RAG_Student_Guide_Academic_Advisor_AR.pdf
+/*.mp4
+
+# Supplied public Hebron PDFs only; other incoming files stay local.
+!data/incoming/014-form.pdf
+!data/incoming/015-form.pdf
+!data/incoming/016-form.pdf
+!data/incoming/017-form.pdf
+!data/incoming/018-form.pdf
+!data/incoming/019-form.pdf
+!data/incoming/020-form.pdf
+!data/incoming/021-form.pdf
+!data/incoming/022-form.pdf
+!data/incoming/023-form.pdf
+!data/incoming/024-form.pdf
+!data/incoming/027-form.pdf
+!data/incoming/031-form.pdf
+!data/incoming/032-form.pdf
+!data/incoming/Academic-Advisory-General Division.pdf
+!data/incoming/conduct.pdf
+!data/incoming/بكالوريوس الأمن السيبراني 2022.pdf
+!data/incoming/بكالوريوس الأمن السيبراني- مسار جرائم الكترونية 2022.pdf
+!data/incoming/بكالوريوس تكنولوجيا الويب والوسائط المتعددة 2022.pdf
+!data/incoming/بكالوريوس رئيسي علم الحاسوب- فرعي ادارة الاعمال 2022.pdf
+!data/incoming/بكالوريوس رئيسي علم حاسوب – فرعي هندسة برمجيات 2026.pdf
+!data/incoming/بكالوريوس علم الحاسوب 2022.pdf
+!data/incoming/تخصص رئيسي علم الحاسوب فرعي علم البيانات والذكاء الاصطناعي 2024.pdf

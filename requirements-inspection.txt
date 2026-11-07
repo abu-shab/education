@@ -1,0 +1,3 @@
+# Optional: only needed to rerun the organizer-video inspection script.
+opencv-python-headless==5.0.0.93
+imageio-ffmpeg==0.8.1
