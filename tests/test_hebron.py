@@ -85,8 +85,30 @@ def test_actual_form_catalog(q,id,hebron_snapshot):
     'ما نسبة الحضور الإلزامية؟','ما المهلة الحالية لتأجيل فصل؟'])
 def test_forms_and_conduct_do_not_establish_current_regulations(q,hebron_snapshot):
     result=answer(q,offline=True)
-    assert result['status']=='insufficient_evidence' and 'غير موجودة' in result['answer']
+    assert result['status']=='insufficient_evidence'
+    assert ('not available' if result['language']=='en' else 'غير موجودة') in result['answer']
     assert not result['citations']
+
+@pytest.mark.parametrize('question,kwargs,expected',[
+    ('What is the total credit-hour requirement for Computer Science 2022?',{},'135 credit hours'),
+    ('Which form is used to defer a semester?',{},'Semester deferral form'),
+    ('What is the prerequisite of T1315?',{'plan_id':'hu-cs-2022'},'T1214'),
+    ('Can I register for T1315?',{'plan_id':'hu-cs-2022'},'Have you passed'),
+    ('How many hours is T1333?',{'plan_id':'hu-cs-2022'},'not been visually reviewed'),
+    ('Can I graduate without listing completed courses?',{},'completed courses'),
+    ('How many credits is 61101?',{'plan_id':'hu-cyber-2022'},'Conflicting rows'),
+    ('What is the prerequisite of T1211?',{'plan_id':'hu-cs-ai-2024'},'will not assume')])
+def test_english_structured_responses(question,kwargs,expected,hebron_snapshot):
+    import re
+    response=answer(question,offline=True,**kwargs)
+    assert response['language']=='en' and expected in response['answer']
+    assert not re.search(r'[\u0621-\u064a]',response['answer'])
+
+def test_source_citations_preserve_original_language(hebron_snapshot):
+    response=answer('Which form is used to defer a semester?',offline=True)
+    assert response['language']=='en'
+    assert response['citations'][0]['document_id']=='hu-form-021'
+    assert 'نموذج' in response['citations'][0]['document']
 
 def test_unknown_values_and_rows_are_not_claimed_verified(hebron_snapshot):
     result=answer('كم ساعة T1333؟',plan_id='hu-cs-2022',offline=True)

@@ -53,6 +53,23 @@ FORMS = {
     '031':('نموذج معادلة المساقات للتجسير من الدبلوم إلى البكالوريوس','توثيق معادلة مساقات التجسير من الدبلوم للبكالوريوس','معادلة تجسير دبلوم بكالوريوس diploma bachelor bridging'),
 }
 
+# English renderings of the visually reviewed Arabic form titles/purposes.
+# Original Arabic titles remain unchanged in citations and the source PDFs.
+FORMS_EN = {
+    '014':('Final examination absence excuse form','Submit an excuse for absence from a final examination'),
+    '015':('Approval to take an incomplete final examination','Record approval to take an incomplete final examination'),
+    '016':('Substitute course registration for graduation','Request registration in a substitute course for graduation'),
+    '017':('Remaining courses for expected graduates','List the courses and credits remaining for an expected graduate'),
+    '018':('Student graduation form','Document a student graduation request or procedure'),
+    '020':('Semester withdrawal form','Request withdrawal from a semester'),
+    '021':('Semester deferral form','Request deferral of a semester'),
+    '022':('Course equivalency for transfer from another university to Hebron University','Document course equivalency when transferring from another university to Hebron University'),
+    '023':('Course equivalency for transfer between colleges','Document course equivalency when transferring between colleges within the university'),
+    '024':('Course equivalency for transfer between departments','Document course equivalency when transferring between departments within the university'),
+    '027':('Petition to the dean','Present a request or matter to the college dean'),
+    '031':('Course equivalency for bridging from diploma to bachelor degree','Document course equivalency when bridging from a diploma to a bachelor degree'),
+}
+
 EXCLUSIONS = {
     '019-form.pdf':'Graduate-studies language review; outside the IT undergraduate MVP.',
     '032-form.pdf':'Medical-college annual deferral; outside the IT undergraduate MVP.',

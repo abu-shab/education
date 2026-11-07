@@ -112,3 +112,7 @@ Reproduce current checks:
 ```
 
 The source PDFs under `data/incoming/` were supplied by the user as public Hebron University documents (hebron.edu) and are included so the index can be reproduced. The three out-of-scope PDFs are retained for provenance and excluded by the importer. Exact original download URLs are unknown and recorded as null; no per-file URL is invented. Review provenance, per-file extraction outcomes, missing regulations and current test results are in `DATA_INGESTION_REPORT.md` and `docs/HEBRON_SOURCE_MANIFEST.json`.
+
+## Reply language
+
+Replies follow the latest student question: English questions receive English answers and Arabic questions receive Arabic answers. Structured lookups, clarification/refusal messages, provider errors and Gemini claims use the selected language without an extra translation API call. Source document titles, excerpts, course codes and citation IDs remain in their original form for verification. The API returns `language: "en" | "ar"`, and English chat replies render left to right.

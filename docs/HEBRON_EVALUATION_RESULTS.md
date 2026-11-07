@@ -1,6 +1,6 @@
 # Actual Hebron source evaluation
 
-2026-11-07T10:50:44.665739+00:00
+2026-11-07T11:52:26.104855+00:00
 
 Codex AI compared supplied PDF renders with stored plan headings, representative rows and form titles; not institutional or human sign-off
 

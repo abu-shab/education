@@ -54,3 +54,5 @@ Student 1: academic/pdf_tables.py, academic/structured.py, academic/hebron_catal
 The importer creates a local SQLite backup and preserves all original PDFs under data/originals. Source manifest: docs/HEBRON_SOURCE_MANIFEST.json. Evidence IDs remain stable for unchanged inputs. Data categories and review states are relational, and unreviewed data do not drive authoritative course answers. Final source-based evaluation remains provisional pending human sign-off.
 
 Chat privacy is a persistent non-blocking reminder. No checkbox or confirmation field is required by /api/chat; identifier guards remain active.
+
+Reply language is server-detected from the latest question (code-only follow-ups inherit the prior question language). The chat response includes language=en/ar. Preserve original source metadata/excerpts, and use the response language for answer status, explanatory prose and reading direction. Gemini receives a trusted language directive and Arabic claims are rejected for English requests.

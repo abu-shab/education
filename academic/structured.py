@@ -3,6 +3,8 @@ import json
 import re
 from rag import store
 from rag.text import normalize, codes
+from rag.language import choose
+from academic.hebron_catalog import FORMS_EN
 
 def plans():
     with store.connect() as db:
@@ -74,23 +76,25 @@ def form_records(query=''):
     scored.sort(key=lambda item:item[0],reverse=True)
     return [record for score,record in scored if score==scored[0][0]][:4] if scored else []
 
-def route(question, *, plan_id=None,program=None,version=None,document_id=None,passed_courses=None):
+def route(question, *, plan_id=None,program=None,version=None,document_id=None,passed_courses=None,language='ar'):
     if not plans():return None
+    def m(ar,en):return choose(ar,en,language)
     n=normalize(question)
     is_graduation=bool(re.search(r'هل.*(?:اتخرج|تخرج)|(?:can|will|whether).*graduat|graduation readiness|جاهز.*تخرج',n))
     if is_graduation:
         chosen=selected_plans(question,plan_id=plan_id,program=program,version=version,document_id=document_id)
         evidence=row_evidence(chosen[0]['total_credits_reference']) if len(chosen)==1 else []
-        return {'status':'needs_clarification','answer':'لا يمكن تحديد جاهزية التخرج دون خطة محددة ومراجعة بالكامل وقائمة المساقات المكتملة وحالتها في سجل افتراضي. الساعات الإجمالية وحدها لا تكفي، ولن أستخدم سجلاً حقيقياً أو أفترض اكتمال المتطلبات.', 'evidence':evidence}
+        return {'status':'needs_clarification','answer':m('لا يمكن تحديد جاهزية التخرج دون خطة محددة ومراجعة بالكامل وقائمة المساقات المكتملة وحالتها في سجل افتراضي. الساعات الإجمالية وحدها لا تكفي، ولن أستخدم سجلاً حقيقياً أو أفترض اكتمال المتطلبات.','Graduation readiness cannot be determined without a specified, fully reviewed plan and a list of completed courses and their outcomes in a fictional record. Total credits alone are insufficient. I will not use real student records or assume that requirements are complete.'), 'evidence':evidence}
     form_intent=bool(re.search(r'نموذج|نماذج|استماره|\bforms?\b|(?:which|what) document|ما (?:المستند|الوثيقه)',n))
     if form_intent:
         found=form_records(question)
         if document_id:found=[f for f in found if f['document_id']==document_id]
-        if not found:return {'status':'insufficient_evidence','answer':'لم أجد نموذجاً موثقاً يطابق هذا الإجراء في الفهرس. لا يثبت غيابه أن الإجراء غير موجود.','evidence':[]}
+        if not found:return {'status':'insufficient_evidence','answer':m('لم أجد نموذجاً موثقاً يطابق هذا الإجراء في الفهرس. لا يثبت غيابه أن الإجراء غير موجود.','I could not find a documented form matching this procedure in the catalog. Its absence does not prove that the procedure does not exist.'),'evidence':[]}
         reviewed=[f for f in found if f['review_status']=='visual_checked_title_use']
-        if not reviewed:return {'status':'needs_clarification','answer':'وجدت نموذجاً مستخرجاً لم تُراجع هويته بعد. راجع المصدر أولاً.','evidence':sum((row_evidence(f['source_reference_id']) for f in found),[])}
-        lines=[f"نموذج {f['form_number']}: {f['official_title']}. الاستخدام: {f['intended_use']}." for f in reviewed]
-        lines.append('هذا يثبت وجود النموذج وغرضه فقط؛ لا يثبت الأهلية أو مهلة حالية أو حق الموافقة. تاريخ النسخة غير محدد في الملفات المقدمة.')
+        if not reviewed:return {'status':'needs_clarification','answer':m('وجدت نموذجاً مستخرجاً لم تُراجع هويته بعد. راجع المصدر أولاً.','An extracted form was found, but its identity has not been reviewed. Check the original source first.'),'evidence':sum((row_evidence(f['source_reference_id']) for f in found),[])}
+        lines=[m(f"نموذج {f['form_number']}: {f['official_title']}. الاستخدام: {f['intended_use']}.",
+                 f"Form {f['form_number']}: {FORMS_EN[f['form_number']][0]}. Purpose: {FORMS_EN[f['form_number']][1]}.") for f in reviewed]
+        lines.append(m('هذا يثبت وجود النموذج وغرضه فقط؛ لا يثبت الأهلية أو مهلة حالية أو حق الموافقة. تاريخ النسخة غير محدد في الملفات المقدمة.','This establishes only that the form exists and what it is for; it does not establish eligibility, a current deadline or a right to approval. The supplied files do not specify the version date.'))
         return {'status':'answered','answer':'\n\n'.join(lines),'evidence':sum((row_evidence(f['source_reference_id']) for f in reviewed),[])}
     asked_codes=set(codes(question))
     course_intent=bool(asked_codes) or bool(re.search(r'متطلب|prerequis|credit.*course|course.*credit|ساعات.*(?:مساق|ماده)|(?:مساق|ماده).*ساع|mandatory|elective|اجباري|اختياري|مساقات|\bcourses\b',n))
@@ -100,41 +104,43 @@ def route(question, *, plan_id=None,program=None,version=None,document_id=None,p
     if not course_intent and not total_intent:return None
     chosen=selected_plans(question,plan_id=plan_id,program=program,version=version,document_id=document_id)
     if len(chosen)!=1:
-        return {'status':'needs_clarification','answer':'حدد الخطة والبرنامج والسنة؛ لا يمكن دمج متطلبات المساق أو الساعات بين الخطط. الخطط المتاحة: '+ '؛ '.join(p['id']+' — '+p['title'] for p in chosen), 'evidence':[]}
+        return {'status':'needs_clarification','answer':m('حدد الخطة والبرنامج والسنة؛ لا يمكن دمج متطلبات المساق أو الساعات بين الخطط. الخطط المتاحة: ','Specify the plan, program and year. Course requirements and credits cannot be combined across plans. Available plans: ')+ '; '.join(p['id']+' — '+m(p['title'],f"{p['name_en']} ({p['plan_year']})") for p in chosen), 'evidence':[]}
     plan=chosen[0]
+    plan_name=m(plan['title'],f"{plan['name_en']} ({plan['plan_year']})")
     if total_intent and not asked_codes:
         evidence=row_evidence(plan['total_credits_reference'])
         if plan['total_credits'] is None or not plan['review_status'].startswith('visual_checked'):
-            return {'status':'insufficient_evidence','answer':'لم يُتحقق من إجمالي ساعات هذه الخطة في المصدر بعد.','evidence':evidence}
+            return {'status':'insufficient_evidence','answer':m('لم يُتحقق من إجمالي ساعات هذه الخطة في المصدر بعد.','The total credit requirement for this plan has not yet been verified against the source.'),'evidence':evidence}
         warnings=json.loads(plan['warnings'])
-        text=f"الإجمالي المعلن في خطة {plan['title']} هو {plan['total_credits']:g} ساعة معتمدة. هذا إجمالي الخطة المطبوع، وليس جمع كل المساقات الاختيارية المدرجة، ولا يثبت جاهزية طالب للتخرج."
-        if warnings:text+=' توجد ملاحظة تعارض في أرقام المتطلبات الفرعية بالمصدر؛ يلزم الرجوع للجامعة ولا أصحح الأرقام بالافتراض.'
+        text=m(f"الإجمالي المعلن في خطة {plan['title']} هو {plan['total_credits']:g} ساعة معتمدة. هذا إجمالي الخطة المطبوع، وليس جمع كل المساقات الاختيارية المدرجة، ولا يثبت جاهزية طالب للتخرج.",f"The stated total for {plan_name} is {plan['total_credits']:g} credit hours. This is the printed plan total, not a sum of every listed elective, and it does not establish a student's graduation readiness.")
+        if warnings:text+=m(' توجد ملاحظة تعارض في أرقام المتطلبات الفرعية بالمصدر؛ يلزم الرجوع للجامعة ولا أصحح الأرقام بالافتراض.',' The source contains a discrepancy in requirement subtotals. Consult the university; I will not correct the figures by assumption.')
         return {'status':'answered','answer':text,'evidence':evidence}
     rows=course_records(plan['id'])
     matched=[r for r in rows if r['code_key'] in asked_codes or (not asked_codes and
         any(len(normalize(name or ''))>3 and normalize(name) in n for name in (r['name_ar'],r['name_en'])))]
-    if not matched:return {'status':'insufficient_evidence','answer':'لم أجد هذا المساق بشكل موثق في الخطة المحددة. تحقق من رمز المساق أو اختر الخطة المناسبة.','evidence':[]}
+    if not matched:return {'status':'insufficient_evidence','answer':m('لم أجد هذا المساق بشكل موثق في الخطة المحددة. تحقق من رمز المساق أو اختر الخطة المناسبة.','I could not find documented evidence for this course in the selected plan. Check the course code or choose the applicable plan.'),'evidence':[]}
     if len({r['code_key'] for r in matched})>1:
-        return {'status':'needs_clarification','answer':'حدد مساقاً واحداً لحساب متطلباته أو ساعاته.','evidence':[]}
+        return {'status':'needs_clarification','answer':m('حدد مساقاً واحداً لحساب متطلباته أو ساعاته.','Specify one course to look up its prerequisites or credit hours.'),'evidence':[]}
     signatures={(r['credit_hours'],r['prerequisite_expression']) for r in matched}
     evidence=sum((row_evidence(r['source_reference_id']) for r in matched),[])
-    if len(signatures)>1:return {'status':'needs_clarification','answer':'توجد صفوف مختلفة لهذا الرمز داخل الخطة؛ لا يمكن اعتماد أحدها تلقائياً. راجع الصفوف الأصلية.','evidence':evidence}
+    if len(signatures)>1:return {'status':'needs_clarification','answer':m('توجد صفوف مختلفة لهذا الرمز داخل الخطة؛ لا يمكن اعتماد أحدها تلقائياً. راجع الصفوف الأصلية.','Conflicting rows exist for this code within the plan. I cannot automatically choose one; review the original rows.'),'evidence':evidence}
     row=next((r for r in matched if r['review_status']=='visual_checked_core_fields'),matched[0])
     if row['review_status']!='visual_checked_core_fields':
-        return {'status':'insufficient_evidence','answer':f"وجدت صف المساق {row['code']}، لكن بياناته لم تُراجع بصرياً بعد. لا أعتمد رقماً أو شرطاً غير متحقق منه؛ افتح المصدر أو راجع قائمة المراجعة.",'evidence':evidence}
+        return {'status':'insufficient_evidence','answer':m(f"وجدت صف المساق {row['code']}، لكن بياناته لم تُراجع بصرياً بعد. لا أعتمد رقماً أو شرطاً غير متحقق منه؛ افتح المصدر أو راجع قائمة المراجعة.",f"A row for {row['code']} was found, but its data have not been visually reviewed. I will not rely on an unverified number or condition; open the source or consult the review queue."),'evidence':evidence}
     if any(k in n for k in ['ساع','credit','hours']):
-        return {'status':'answered','answer':f"المساق {row['code']} في خطة {plan['title']}: {row['credit_hours']:g} ساعة معتمدة. الاسم المستخرج من الجدول: {row['name_ar']} / {row['name_en']} (الاسم يحتاج مراجعة مستقلة).",'evidence':evidence}
+        return {'status':'answered','answer':m(f"المساق {row['code']} في خطة {plan['title']}: {row['credit_hours']:g} ساعة معتمدة. الاسم المستخرج من الجدول: {row['name_ar']} / {row['name_en']} (الاسم يحتاج مراجعة مستقلة).",f"Course {row['code']} in {plan_name}: {row['credit_hours']:g} credit hours. Extracted course name: {row['name_en']} (the name requires separate review)."),'evidence':evidence}
     expression=row['prerequisite_expression']
     if row['interpretation'] in ('unknown','notation_unverified'):
-        return {'status':'partially_answered','answer':f"خانة المتطلب للمساق {row['code']} كما وردت: {expression or '[فارغة]'}. لا توجد في الملفات المقدمة قاعدة موثقة تفسر الخانة الفارغة أو الرموز؛ لا أفترض عدم وجود متطلب أو معنى الجمع/التزامن أو البدائل.",'evidence':evidence}
+        return {'status':'partially_answered','answer':m(f"خانة المتطلب للمساق {row['code']} كما وردت: {expression or '[فارغة]'}. لا توجد في الملفات المقدمة قاعدة موثقة تفسر الخانة الفارغة أو الرموز؛ لا أفترض عدم وجود متطلب أو معنى الجمع/التزامن أو البدائل.",f"The prerequisite cell for {row['code']} reads: {expression or '[blank]'}. The supplied files do not define the blank cell or notation. I will not assume that there is no prerequisite, or infer AND, concurrency or alternatives."),'evidence':evidence}
     prerequisite_codes=json.loads(row['prerequisite_codes'])
     text=(f"المتطلب السابق للمساق {row['code']} في خطة {plan['title']}: "+
           ('لا يوجد رمز متطلب؛ الخانة تحتوي شرطات صريحة.' if row['interpretation']=='explicit_none' else expression+'.'))
+    if language=='en':text=f"Prerequisite for {row['code']} in {plan_name}: "+('No prerequisite code is listed; the cell explicitly contains dashes.' if row['interpretation']=='explicit_none' else expression+'.')
     eligibility=any(k in n for k in ['اسجل','eligible','register'])
     if eligibility:
         if passed_courses is None and prerequisite_codes:
-            return {'status':'needs_clarification','answer':text+' هل اجتزت المتطلب في الحالة الافتراضية؟ لا ترسل سجلاً حقيقياً.','evidence':evidence}
+            return {'status':'needs_clarification','answer':text+m(' هل اجتزت المتطلب في الحالة الافتراضية؟ لا ترسل سجلاً حقيقياً.',' Have you passed the prerequisite in the fictional example? Do not send real student records.'),'evidence':evidence}
         missing=sorted(set(prerequisite_codes)-set(passed_courses or []))
-        return {'status':'partially_answered','answer':text+(' لم يتحقق المتطلب في الحالة الافتراضية.' if missing else ' تحقق شرط رموز المتطلبات في الحالة الافتراضية.')+' هذا ليس قرار أهلية تسجيل كامل؛ اللوائح الأكاديمية الحالية غير متوفرة.',
+        return {'status':'partially_answered','answer':text+m((' لم يتحقق المتطلب في الحالة الافتراضية.' if missing else ' تحقق شرط رموز المتطلبات في الحالة الافتراضية.'),(' The prerequisite is not satisfied in the fictional example.' if missing else ' The prerequisite-code condition is satisfied in the fictional example.'))+m(' هذا ليس قرار أهلية تسجيل كامل؛ اللوائح الأكاديمية الحالية غير متوفرة.',' This is not a full registration-eligibility decision; current academic regulations are unavailable.'),
                 'evidence':evidence,'prerequisites_satisfied':not missing,'missing':missing}
     return {'status':'answered','answer':text,'evidence':evidence}

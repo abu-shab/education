@@ -3,6 +3,7 @@ from academic.rules import resolve_question, evaluate_course, evaluate_registrat
 from providers.gemini import provider, ProviderUnavailable
 from rag.retrieval import retriever
 from rag.text import normalize, codes
+from rag.language import detect_language,localize_message,ERRORS_EN
 
 def citation(r):
     return {'id': r['id'], 'document_id': r['document_id'], 'document': r['title'],
@@ -13,11 +14,12 @@ def citation(r):
             'url': '/sources/' + r['id'], 'score': r.get('score')}
 
 def answer(question, *, mode='generate', history=None, passed_courses=None, program=None, version=None, document_id=None, corpus='auto', offline=False, plan_id=None, knowledge_scope='academic'):
+    language=detect_language(question,history)
     q, clarification = resolve_question(question, history or [])
-    base = {'resolved_question': q, 'citations': [], 'claims': [], 'origin': 'guardrail', 'synthetic': False}
+    base = {'resolved_question': q, 'citations': [], 'claims': [], 'origin': 'guardrail', 'synthetic': False,'language':language}
     def result(status, text, evidence=None, origin='guardrail', **extra):
         refs = list({r['id']: r for r in (evidence or [])}.values())
-        return {**base, 'status': status, 'answer': text, 'citations': [citation(r) for r in refs],
+        return {**base, 'status': status, 'answer': localize_message(text,language), 'citations': [citation(r) for r in refs],
                 'origin': origin, 'synthetic': bool(refs) and all(r['synthetic'] for r in refs), **extra}
     if clarification:
         return result('needs_clarification', clarification)
@@ -44,7 +46,7 @@ def answer(question, *, mode='generate', history=None, passed_courses=None, prog
     if real_available and scope!='conduct':
         if scope=='forms' and not form_question:
             return result('insufficient_evidence','نطاق البحث المحدد هو النماذج الإجرائية فقط. لا تثبت النماذج ساعات المساقات أو متطلباتها أو اللوائح الحالية.')
-        routed=structured.route(q,plan_id=plan_id,program=program,version=version,document_id=document_id,passed_courses=passed_courses)
+        routed=structured.route(q,plan_id=plan_id,program=program,version=version,document_id=document_id,passed_courses=passed_courses,language=language)
         if routed:
             return result(routed['status'],routed['answer'],routed['evidence'],'structured_db',
                 **{k:v for k,v in routed.items() if k not in ('status','answer','evidence')})
@@ -54,7 +56,7 @@ def answer(question, *, mode='generate', history=None, passed_courses=None, prog
             if not evidence:
                 return result('insufficient_evidence','اللوائح الأكاديمية الحالية المنظمة لهذا السؤال غير موجودة في الحزمة المقدمة. الخطط والنماذج ومدونة السلوك لا تثبت حد الانسحاب أو الحضور أو التسجيل الحالي. راجع دائرة القبول والتسجيل؛ لا يمكنني افتراض مهلة أو شرط.')
     # Refuse to infer a dynamic exam date from generic exam regulations.
-    if re.search(r'متي|موعد|اي يوم', n) and re.search(r'امتحان|اختبار', n) and not any(r['kind'] == 'schedule' for r in evidence):
+    if re.search(r'متي|موعد|اي يوم|when|what date', n) and re.search(r'امتحان|اختبار|exam', n) and not any(r['kind'] == 'schedule' for r in evidence):
         return result('insufficient_evidence', 'لا يتوفر جدول امتحانات موثق يجيب عن الموعد. راجع جدول الامتحانات الرسمي أو دائرة التسجيل.')
     groups = {}
     for r in evidence:
@@ -63,9 +65,9 @@ def answer(question, *, mode='generate', history=None, passed_courses=None, prog
         return result('needs_clarification', 'توجد نسخ مختلفة من اللوائح أو الخطط. حدد البرنامج ونسخة المستند التي تنطبق عليك.', evidence)
     course_rows = retriever.rows if not document_id else [r for r in retriever.rows if r['document_id'] == document_id]
     multi_topic = any(k in n for k in ['انسحاب', 'الحضور', 'الغياب']) and any(k in n for k in ['cs', 'برمجة', 'مساق'])
-    deterministic = None if multi_topic or real_available else evaluate_course(q, course_rows, passed_courses, program, version, corpus)
+    deterministic = None if multi_topic or real_available else evaluate_course(q, course_rows, passed_courses, program, version, corpus,language=language)
     if not deterministic:
-        deterministic = evaluate_registration(q, evidence)
+        deterministic = evaluate_registration(q, evidence,language=language)
     if deterministic:
         return result(deterministic['status'], deterministic['answer'], deterministic['evidence'], 'deterministic',
             **{k:v for k,v in deterministic.items() if k not in ('status','answer','evidence')})
@@ -77,7 +79,7 @@ def answer(question, *, mode='generate', history=None, passed_courses=None, prog
     if offline:
         return result('service_unavailable', 'التوليد متوقف في التقييم المحلي؛ هذه أدلة فقط.', evidence, 'retrieval_only')
     try:
-        generated, usage = provider.generate(q, evidence)
+        generated, usage = provider.generate(q, evidence,language=language)
         cited_ids = {id for c in generated.claims for id in c.evidence_ids}
         refs = [r for r in evidence if r['id'] in cited_ids]
         claims = [c.model_dump() for c in generated.claims]
@@ -86,4 +88,5 @@ def answer(question, *, mode='generate', history=None, passed_courses=None, prog
             text += ('\n\n' if text else '') + generated.message
         return result(generated.status, text, refs, 'gemini', claims=claims, usage=usage)
     except ProviderUnavailable as exc:
-        return result('service_unavailable', str(exc), evidence, 'retrieval_only', error_code=exc.code)
+        message=ERRORS_EN.get(exc.code,ERRORS_EN['service_unavailable']) if language=='en' else str(exc)
+        return result('service_unavailable', message, evidence, 'retrieval_only', error_code=exc.code)

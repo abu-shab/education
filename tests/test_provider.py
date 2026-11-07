@@ -73,3 +73,22 @@ def test_unverified_provider_never_calls_network(monkeypatch):
 def test_context_budget_is_bounded(configured):
     with pytest.raises(module.ProviderUnavailable) as e:configured.generate('q',[{'text':'x'*30001}])
     assert e.value.code=='context_too_large'
+
+def test_english_generation_instruction_and_partial_footer(configured,monkeypatch):
+    fake=FakeClient([{'status':'partially_answered','claims':[{'text':'Attendance is 80%.','evidence_ids':['x']}],'message':''}])
+    original=fake.generate_content;captured={}
+    def capture(**kwargs):
+        captured.update(kwargs)
+        return original(**kwargs)
+    fake.generate_content=capture;monkeypatch.setattr(module,'client',lambda:fake)
+    result,_=configured.generate('What is the attendance requirement?',[{'id':'x','text':'الحضور 80%','synthetic':True}],language='en')
+    assert 'Respond in English' in captured['config'].system_instruction
+    assert json.loads(captured['contents'])['response_language']=='English'
+    assert result.message.startswith('The evidence')
+
+def test_english_request_never_displays_arabic_generated_claims(configured,monkeypatch):
+    fake=FakeClient([{'status':'answered','claims':[{'text':'الحضور 80%','evidence_ids':['x']}],'message':''}])
+    monkeypatch.setattr(module,'client',lambda:fake)
+    with pytest.raises(module.ProviderUnavailable) as exc:
+        configured.generate('What is the attendance requirement?',[{'id':'x','text':'الحضور 80%','synthetic':True}],language='en')
+    assert exc.value.code=='response_language_mismatch'
